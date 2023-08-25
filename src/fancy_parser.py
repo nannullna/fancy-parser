@@ -1,5 +1,6 @@
-from typing import Dict, Tuple, Union, Optional, Literal, Mapping, Iterable, Callable, Any, get_type_hints
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from typing import Dict, List, Tuple, Union, Optional, Literal, Mapping, Iterable, Callable, Any, get_type_hints
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace, ArgumentError
+import sys
 import dataclasses
 from dataclasses import fields
 from inspect import isclass
@@ -8,8 +9,20 @@ from enum import Enum
 import json
 import yaml
 
-
+SUPPRESS = '==SUPPRESS=='
+_UNRECOGNIZED_ARGS_ATTR = '_unrecognized_args'
 NoneType = type(None)
+
+class bcolors(Enum):
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 
 class FancyParser(ArgumentParser):
@@ -36,8 +49,6 @@ class FancyParser(ArgumentParser):
         
         super().__init__(*args, **kwargs)
         self.add_config_arg = add_config_arg
-        if self.add_config_arg:
-            self.add_argument('-c', '--config', type=str)
         
         if isinstance(classes, type):
             classes = [classes]
@@ -173,6 +184,74 @@ class FancyParser(ArgumentParser):
         # Add the argument
         parser.add_argument(f'--{field.name}', **kwargs)
 
+    def set_defaults_from_config(self, config_file: str):
+        """Set the default values of the parser from a config file.
+
+        Args:
+            config_file (`str`): The path to the config file.
+        """
+        if config_file.endswith('.json'):
+            config_dict = self.parse_json(config_file, return_dict=True)
+        elif config_file.endswith('.yaml'):
+            config_dict = self.parse_yaml(config_file, return_dict=True)
+        else:
+            raise ValueError(f'Unsupported config file format: {config_file}')
+        self.set_defaults(**config_dict)
+
+    
+    def parse_known_args(self, args=None, namespace=None):
+        if args is None:
+            # args default to the system args
+            args = sys.argv[1:]
+        else:
+            # make sure that args are mutable
+            args = list(args)
+
+        # default Namespace built from parser defaults
+        if namespace is None:
+            namespace = Namespace()
+        
+        # parse config files
+        if self.add_config_arg:
+            temp_parser = ArgumentParser(add_help=False)
+            temp_parser.add_argument('-c', '--config', type=str, nargs='*', help='Path to config file(s).')
+            temp_namespace, args = temp_parser.parse_known_args(args=args)
+
+            if temp_namespace.config is not None:
+                for config_file in temp_namespace.config:
+                    self.set_defaults_from_config(config_file)
+
+            if self.add_config_arg:
+                self.add_argument('-c', '--config', type=str, nargs='*', help='Path to config file(s).')
+
+        # add any action defaults that aren't present
+        for action in self._actions:
+            if action.dest is not SUPPRESS:
+                if not hasattr(namespace, action.dest):
+                    if action.default is not SUPPRESS:
+                        setattr(namespace, action.dest, action.default)
+
+        # add any parser defaults that aren't present
+        for dest in self._defaults:
+            if not hasattr(namespace, dest):
+                setattr(namespace, dest, self._defaults[dest])
+
+        # parse the arguments and exit if there are any errors
+        if self.exit_on_error:
+            try:
+                namespace, args = self._parse_known_args(args, namespace)
+            except ArgumentError:
+                err = sys.exc_info()[1]
+                self.error(str(err))
+        else:
+            namespace, args = self._parse_known_args(args, namespace)
+
+        if hasattr(namespace, _UNRECOGNIZED_ARGS_ATTR):
+            args.extend(getattr(namespace, _UNRECOGNIZED_ARGS_ATTR))
+            delattr(namespace, _UNRECOGNIZED_ARGS_ATTR)
+        return namespace, args
+
+
     def parse_args_into_dataclasses(
         self,
         args=None,
@@ -196,18 +275,6 @@ class FancyParser(ArgumentParser):
             `Tuple[...]`: The parsed dataclasses.
         """
         namespace, remaining_args = self.parse_known_args(args=args)
-        if self.add_config_arg and namespace.config is not None:
-            if namespace.config.endswith('.json'):
-                config_dict = self.parse_json(namespace.config, return_dict=True)
-            elif namespace.config.endswith('.yaml'):
-                config_dict = self.parse_yaml(namespace.config, return_dict=True)
-            else:
-                raise ValueError(f'Unsupported config file format: {namespace.config}')
-        else:
-            config_dict = {}
-        self.set_defaults(**config_dict)
-        namespace, remaining_args = self.parse_known_args(args=remaining_args)
-        
         outputs = []
         for cls in self.classes:
             keys = {f.name for f in fields(cls) if f.init}
@@ -223,6 +290,7 @@ class FancyParser(ArgumentParser):
             if remaining_args:
                 raise ValueError(f'Unused arguments: {remaining_args}')
             return (*outputs,)
+
 
     def parse_dict(self, args: Dict[str, Any], allow_extra_keys: bool=False) -> Tuple:
         """Parse a dictionary into dataclasses.
@@ -244,9 +312,12 @@ class FancyParser(ArgumentParser):
             obj = cls(**inputs)
             outputs.append(obj)
         if unused_keys and not allow_extra_keys:
+            if self.add_config_arg and ("config" in unused_keys):
+                unused_keys.remove("config")
             raise ValueError(f'Unused keys: {unused_keys}')
         return (*outputs,)
     
+
     def parse_json(self, json_file: str, return_dict=False, allow_extra_keys: bool=False) -> Tuple:
         """Parse a json file into dataclasses.
 
@@ -263,6 +334,7 @@ class FancyParser(ArgumentParser):
             return args
         return self.parse_dict(args, allow_extra_keys=allow_extra_keys)
     
+
     def parse_yaml(self, yaml_file: str, return_dict=False, allow_extra_keys: bool=False) -> Tuple:
         """Parse a yaml file into dataclasses.
 
@@ -275,7 +347,6 @@ class FancyParser(ArgumentParser):
         """
         with open(yaml_file, encoding='utf=-8', mode='r') as f:
             args = yaml.safe_load(f)
-        print(args)
         if return_dict:
             return args
         return self.parse_dict(args, allow_extra_keys=allow_extra_keys)
