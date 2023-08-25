@@ -13,7 +13,8 @@ SUPPRESS = '==SUPPRESS=='
 _UNRECOGNIZED_ARGS_ATTR = '_unrecognized_args'
 NoneType = type(None)
 
-class bcolors(Enum):
+# Will support colors in the future
+class bcolors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
     OKCYAN = '\033[96m'
