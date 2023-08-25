@@ -1,0 +1,8 @@
+epochs: 5
+hidden_dims:
+  - 128
+  - 128
+  - 64
+  - 32
+dropout: 0.05
+optimizer: adam
