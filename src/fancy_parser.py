@@ -9,7 +9,6 @@ from enum import Enum
 import json
 import yaml
 
-SUPPRESS = '==SUPPRESS=='
 NoneType = type(None)
 
 # Will support colors in the future
