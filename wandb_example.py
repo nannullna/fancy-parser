@@ -68,9 +68,9 @@ def main():
     print(training_args)
     print(model_args)
 
-    # init_model(model_args)
-    # init_optimizer(training_args)
-    # train(training_args)
+    init_model(model_args)
+    init_optimizer(training_args)
+    train(training_args)
 
     wandb.finish()
     

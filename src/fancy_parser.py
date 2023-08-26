@@ -222,8 +222,7 @@ class FancyParser(ArgumentParser):
                 for config_file in temp_namespace.config:
                     self.set_defaults_from_config(config_file)
 
-            if self.add_config_arg:
-                self.add_argument('-c', '--config', type=str, nargs='*', help='Path to config file(s).')
+            self.add_argument('-c', '--config', type=str, nargs='*', help='Path to config file(s).')
 
         # add any action defaults that aren't present
         for action in self._actions:
