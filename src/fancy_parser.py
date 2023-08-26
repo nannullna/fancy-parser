@@ -92,6 +92,7 @@ class FancyParser(ArgumentParser):
             choices = {str(c): c for c in choices}
         return lambda s: choices.get(s, s)
     
+
     def add_arguments_from_dataclass(self, cls: type):
         """Add arguments to the parser from a dataclass.
 
@@ -111,6 +112,7 @@ class FancyParser(ArgumentParser):
             except Exception as e:
                 print(field)
                 raise e
+
 
     def add_argument_from_field(self, parser: ArgumentParser, field: dataclasses.Field):
         """Add an argument to the parser from a dataclass field.
@@ -185,6 +187,7 @@ class FancyParser(ArgumentParser):
         # Add the argument
         parser.add_argument(f'--{field.name}', **kwargs)
 
+
     def set_defaults_from_config(self, config_file: str):
         """Set the default values of the parser from a config file.
 
@@ -224,33 +227,8 @@ class FancyParser(ArgumentParser):
 
             self.add_argument('-c', '--config', type=str, nargs='*', help='Path to config file(s).')
 
-        # add any action defaults that aren't present
-        for action in self._actions:
-            if action.dest is not SUPPRESS:
-                if not hasattr(namespace, action.dest):
-                    if action.default is not SUPPRESS:
-                        setattr(namespace, action.dest, action.default)
-
-        # add any parser defaults that aren't present
-        for dest in self._defaults:
-            if not hasattr(namespace, dest):
-                setattr(namespace, dest, self._defaults[dest])
-
-        # parse the arguments and exit if there are any errors
-        if self.exit_on_error:
-            try:
-                namespace, args = self._parse_known_args(args, namespace)
-            except ArgumentError:
-                err = sys.exc_info()[1]
-                self.error(str(err))
-        else:
-            namespace, args = self._parse_known_args(args, namespace)
-
-        if hasattr(namespace, _UNRECOGNIZED_ARGS_ATTR):
-            args.extend(getattr(namespace, _UNRECOGNIZED_ARGS_ATTR))
-            delattr(namespace, _UNRECOGNIZED_ARGS_ATTR)
-        return namespace, args
-
+        return super().parse_known_args(args=args, namespace=namespace)
+    
 
     def parse_args_into_dataclasses(
         self,
