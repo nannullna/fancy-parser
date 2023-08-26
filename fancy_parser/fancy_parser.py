@@ -1,5 +1,6 @@
 from typing import Dict, List, Tuple, Union, Optional, Literal, Mapping, Iterable, Callable, Any, get_type_hints
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace, ArgumentError
+import os
 import sys
 import dataclasses
 from dataclasses import fields
@@ -326,4 +327,55 @@ class FancyParser(ArgumentParser):
         if return_dict:
             return args
         return self.parse_dict(args, allow_extra_keys=allow_extra_keys)
+    
 
+    @staticmethod
+    def serialize(obj) -> Dict[str, Any]:
+        output = dataclasses.asdict(obj)
+        # Some fields may not be serializable
+        for k, v in output.items():
+            try:
+                json.dumps(v)
+            except TypeError:
+                if isinstance(v, Enum):
+                    output[k] = str(v.value)
+                else:
+                    output[k] = str(v)
+        return output
+
+
+    @staticmethod
+    def to_yaml(objs: Union[object, Iterable[object]], yaml_path: str, merge: bool=False, with_name: bool=False, **kwargs):
+        """Convert dataclasses to yaml.
+
+        Args:
+            objs (`Union[dataclasses._DataclassT, List[dataclasses._DataclassT]]`): The dataclasses to convert.
+            yaml_path (`str`): The path to the yaml file to write to. Must provide a file name if `merge` is False or len(objs) == 1.
+                If `merge` is True, will write to individual files with the same file name as the dataclass name.
+            merge (`bool`, *optional*): Whether to merge the dataclasses into a single dictionary.
+            with_name (`bool`, *optional*): Whether to include the dataclass name in the output.
+        """
+        if not isinstance(objs, Iterable):
+            objs = [objs]
+
+        outputs = {}
+        for obj in objs:
+            outputs[obj.__class__.__name__] = FancyParser.serialize(obj)
+        
+        if merge or (len(objs) == 1):
+            yaml_file = yaml_path
+            if not with_name:
+                outputs = {k: v for output in outputs.values() for k, v in output.items()}
+            with open(yaml_file, encoding='utf-8', mode='w') as f:
+                yaml.safe_dump(outputs, f, sort_keys=False, allow_unicode=True, default_flow_style=False, **kwargs)
+        
+        else:
+            for name, output in outputs.items():
+                yaml_file = os.path.join(yaml_path, f'{name}.yaml')
+                with open(yaml_file, encoding='utf-8', mode='w') as f:
+                    if with_name:
+                        output = {name: output}
+                    yaml.safe_dump(output, f, sort_keys=False, allow_unicode=True, default_flow_style=False, **kwargs)
+        
+
+    

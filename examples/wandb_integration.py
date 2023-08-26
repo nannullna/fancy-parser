@@ -1,4 +1,4 @@
-from src.fancy_parser import FancyParser
+from fancy_parser import FancyParser
 from dataclasses import dataclass, field
 from typing import Optional, Union, List
 from enum import Enum
@@ -67,6 +67,9 @@ def main():
     training_args, model_args = parser.parse_dict(vars(config), allow_extra_keys=True)
     print(training_args)
     print(model_args)
+
+    # Save the config.
+    parser.to_yaml([training_args, model_args], 'exp_config.yaml', merge=True, indent=2, with_name=True)
 
     init_model(model_args)
     init_optimizer(training_args)
