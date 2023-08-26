@@ -10,7 +10,6 @@ import json
 import yaml
 
 SUPPRESS = '==SUPPRESS=='
-_UNRECOGNIZED_ARGS_ATTR = '_unrecognized_args'
 NoneType = type(None)
 
 # Will support colors in the future
@@ -77,7 +76,7 @@ class FancyParser(ArgumentParser):
             raise ValueError(f'Cannot convert {s} to a boolean.')
     
     @staticmethod
-    def to_choice(choices: Iterable[Any]) -> Callable[[str], Any]:
+    def make_choice_type(choices: Iterable[Any]) -> Callable[[str], Any]:
         """Convert an input to a choice.
 
         Args:
@@ -144,7 +143,7 @@ class FancyParser(ArgumentParser):
         # Handle Literal[X, Y, Z]
         if origin_type is Literal:
             kwargs['choices'] = list(field.type.__args__)
-            kwargs['type'] = self.to_choice(kwargs['choices'])
+            kwargs['type'] = self.make_choice_type(kwargs['choices'])
             if field.default is not dataclasses.MISSING:
                 kwargs['default'] = field.type(field.default)
             else:
@@ -153,7 +152,7 @@ class FancyParser(ArgumentParser):
         # Handle Enum
         elif isinstance(origin_type, type) and issubclass(origin_type, Enum):
             kwargs['choices'] = [e for e in field.type]
-            kwargs['type'] = self.to_choice({e.value: e for e in field.type})
+            kwargs['type'] = self.make_choice_type({e.value: e for e in field.type})
             if field.default is not dataclasses.MISSING:
                 kwargs['default'] = field.type(field.default)
             else:
