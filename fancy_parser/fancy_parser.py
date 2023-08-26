@@ -176,6 +176,7 @@ class FancyParser(ArgumentParser):
 
         # Primitive types
         else:
+            kwargs['type'] = field.type
             if field.default is not dataclasses.MISSING:
                 kwargs['default'] = field.default
             elif field.default_factory is not dataclasses.MISSING:
@@ -210,6 +211,8 @@ class FancyParser(ArgumentParser):
             # make sure that args are mutable
             args = list(args)
 
+        print(args)
+
         # default Namespace built from parser defaults
         if namespace is None:
             namespace = Namespace()
@@ -226,7 +229,9 @@ class FancyParser(ArgumentParser):
 
             self.add_argument('-c', '--config', type=str, nargs='*', help='Path to config file(s).')
 
-        return super().parse_known_args(args=args, namespace=namespace)
+        parsed = super().parse_known_args(args=args, namespace=namespace)
+        print(parsed)
+        return parsed
     
 
     def parse_args_into_dataclasses(
@@ -258,6 +263,7 @@ class FancyParser(ArgumentParser):
             inputs = {k: v for k, v in vars(namespace).items() if k in keys}
             for k in inputs.keys():
                 delattr(namespace, k)
+            print(inputs)
             obj = cls(**inputs)
             outputs.append(obj)
         
